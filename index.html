@@ -36,9 +36,14 @@ select:disabled{opacity:.6}
 .pbar i{display:block;height:100%;border-radius:99px}
 #pointsInfo{font-size:13px;margin:0 0 14px}
 #pointsInfo b{color:#ffcf4d}
-.treebox,#path{background:#151823;border:1px solid #232838;border-radius:10px;padding:14px;margin-bottom:14px}
+.treebox{background:#151823;border:1px solid #232838;border-radius:10px;padding:14px;margin-bottom:14px}
 .treehead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
-.notches,.mschips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.treehead.tgl{cursor:pointer;border-radius:6px;margin:-4px -6px 10px;padding:4px 6px}
+.treehead.tgl:hover{background:#1b2030}
+.treehead.tgl:focus-visible{outline:2px solid #5aa7ff}
+.chev{margin-left:auto;font-size:18px;line-height:1;color:#8b94ab;transition:transform .15s}
+.chev.up{transform:rotate(180deg)}
+.notches{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
 .notch{min-width:40px;padding:6px 8px}
 .notch.act{background:#3a4258;border-color:#5a627a}
 .notch.no{opacity:.35;cursor:not-allowed}
@@ -54,10 +59,6 @@ details.sk .body{display:flex;gap:10px;padding:2px 10px 10px;font-size:14px;line
 .star{color:#ffcf4d}
 .ftab{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
 .ftab td,.ftab th{border:1px solid #232838;padding:5px 8px;text-align:left;vertical-align:top}
-.snap{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;margin:8px 0}
-.pstep{display:flex;gap:10px;align-items:baseline;padding:5px 0;font-size:13px;border-bottom:1px solid #1b1f2c}
-.pstep.later{opacity:.35}
-.pstep .lv{min-width:48px;color:#ffcf4d;font-weight:700;flex:none}
 #summary{position:sticky;top:76px;align-self:start;background:#151823;border:1px solid #232838;border-radius:10px;padding:14px;font-size:13px}
 #summary h3,.ccol h3{margin:0 0 8px;font-size:16px}
 .ep{color:#8b94ab;font-style:italic}
@@ -90,7 +91,7 @@ textarea{width:100%;min-height:70px;margin:6px 0}
 .sv{display:flex;gap:8px;align-items:center;border:1px solid #232838;border-radius:8px;padding:8px;margin:6px 0}
 .primary{background:#5aa7ff;color:#0f1115;border-color:#5aa7ff;font-weight:700}
 .primary:hover{background:#7cb9ff}
-@media(prefers-reduced-motion:reduce){#toast{transition:none}}
+@media(prefers-reduced-motion:reduce){#toast,.chev{transition:none}}
 </style>
 </head>
 <body>
@@ -114,13 +115,13 @@ textarea{width:100%;min-height:70px;margin:6px 0}
       <input type="file" id="file" accept="image/*" hidden onchange="uploadImg(this)">
       <div class="fields">
         <input id="inpName" placeholder="Name" maxlength="60" style="flex:1;min-width:140px" oninput="S.name=this.value;softRender()">
-        <input id="inpEpithet" placeholder="Epithet (e.g. The Ashwalker)" maxlength="80" style="flex:1;min-width:140px" oninput="S.epithet=this.value;softRender()">
+        <input id="inpEpithet" placeholder="Title" maxlength="80" style="flex:1;min-width:140px" oninput="S.epithet=this.value;softRender()">
         <label>Rank
           <select id="selRank" onchange="S.rank=this.value;renderAll()">
             <option value="U">Unranked</option><option>E</option><option>D</option><option>C</option><option>B</option><option>A</option>
           </select>
         </label>
-        <input id="inpImg" placeholder="…or portrait image URL (https://)" style="flex:1;min-width:200px" onchange="setImgUrl(this.value)">
+        <input id="inpImg" placeholder="Img link here" style="flex:1;min-width:200px" onchange="setImgUrl(this.value)">
         <label>Level <input id="inpLevel" type="number" min="1" max="100" value="1" style="width:70px" onchange="setLevel(this.value)"></label>
       </div>
     </div>
@@ -128,7 +129,6 @@ textarea{width:100%;min-height:70px;margin:6px 0}
     <div id="slots"></div>
     <p id="pointsInfo"></p>
     <div id="trees"></div>
-    <div id="path"></div>
   </div>
 
   <aside id="summary"></aside>
@@ -155,7 +155,6 @@ textarea{width:100%;min-height:70px;margin:6px 0}
     <p id="shFrame" class="nhint" style="display:none">This preview runs inside a frame, so links copied here won't open the build. They work once the page is hosted on its own, like on GitHub Pages.</p>
     <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:4px 0 8px"><input type="checkbox" id="shImg" onchange="makeLink()"> Include portrait</label>
     <div class="row"><input id="shUrl" readonly style="flex:1"><button class="primary" onclick="copyLink()">Copy link</button></div>
-    <p id="shInfo" class="nhint"></p>
     <details style="margin-top:12px">
       <summary style="cursor:pointer"><b>Build code / import</b></summary>
       <div class="row"><input id="shCode" readonly style="flex:1"><button onclick="copyCode()">Copy code</button></div>
@@ -682,8 +681,7 @@ const RANKC={U:"#8b94ab",E:"#b58b6b",D:"#9aa5b1",C:"#6cc069",B:"#5aa7ff",A:"#ffc
 const MAIN="Main Class Tree";
 let S=blank();
 let LOCK=[false,false,false];   /* slots kept by the randomizer (UI state, not saved) */
-let VIEW=null;                  /* milestone level being viewed; null = full build */
-let PATH_OPEN=false;
+let TREE_OPEN=new Set();        /* trees whose skill list is expanded */
 const OPEN=new Set();           /* expanded skill rows survive re-renders */
 function blank(){return{name:"",epithet:"",rank:"D",level:1,image:null,trees:[null,null,null],spent:{},path:[],pathAuto:false}}
 
@@ -738,8 +736,6 @@ function autoPath(st){
   }
   return path;
 }
-function replan(){S.path=autoPath(S);S.pathAuto=true;renderAll();toast("Path re-planned");}
-function setView(l){VIEW=l;renderPath();}
 
 /* ---- slots ---- */
 function slotCard(t,idx,label){
@@ -789,33 +785,16 @@ function renderTrees(){
     const next=tiers.find(T=>T>cur);
     const nx=next?('Next at '+next+' pts: '+t.sk.filter(s=>s.t===next).map(s=>s.n).join(", ")):"Tree fully unlocked";
     const rows=t.sk.map((sk,i)=>[sk,i]).sort((a,b)=>a[0].t-b[0].t).map(([sk,i])=>skillRow(sk,t,cur>=sk.t,t.id+":"+i)).join("");
-    return '<div class="treebox"><div class="treehead">'+CATI[t.c]+' <span class="tname">'+t.n+'</span>'+badge(t)+' <span style="font-size:12px;color:#8b94ab">'+t.ty+' · '+cur+'/33 pts</span></div><div class="notches">'+chips+'</div><div class="nhint">'+nx+' · click a tier to invest up to it</div>'+rows+'</div>';
+    const open=TREE_OPEN.has(t.id),got=t.sk.filter(s=>cur>=s.t).length;
+    return '<div class="treebox"><div class="treehead tgl" role="button" tabindex="0" aria-expanded="'+open+'" onclick="toggleTree(\''+t.id+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleTree(\''+t.id+'\')}">'
+      +CATI[t.c]+' <span class="tname">'+t.n+'</span>'+badge(t)+' <span style="font-size:12px;color:#8b94ab">'+cur+'/33 pts · '+got+'/'+t.sk.length+' skills</span><span class="chev'+(open?' up':'')+'" title="'+(open?'Hide skills':'Show skills')+'">▾</span></div>'
+      +'<div class="notches">'+chips+'</div><div class="nhint">'+nx+' · click a tier to invest up to it</div>'
+      +(open?'<div class="sklist">'+rows+'</div>':'')+'</div>';
   }).join(""):'<div class="treebox" style="color:#5a627a;text-align:center">Pick your trees above to start spending points.</div>';
   $("#pointsInfo").innerHTML="Level <b>"+S.level+"</b> = <b>"+S.level+"</b> points · spent <b>"+totalSpent()+"</b> · remaining <b>"+(S.level-totalSpent())+"</b>"+(totalSpent()>S.level?' <span style="color:#e5734f">over budget!</span>':"");
 }
 
-/* ---- leveling path panel (milestones) ---- */
-function renderPath(){
-  const box=$("#path");
-  if(!totalSpent()){box.style.display="none";box.innerHTML="";return;}
-  box.style.display="";
-  const r=pathSteps(S.path)||{steps:[]};
-  const top=r.steps.length?r.steps[r.steps.length-1].lv:0;
-  const marks=[10,20,30,50,80].filter(l=>l<top);
-  if(VIEW!==null&&!marks.includes(VIEW))VIEW=null;
-  const view=VIEW===null?top:VIEW;
-  const at={};r.steps.forEach(s=>{if(s.lv<=view)at[s.id]=s.tier;});
-  const chips=marks.map(l=>'<button class="notch'+(VIEW===l?" act":"")+'" onclick="setView('+l+')">Lv '+l+'</button>').join("")
-    +'<button class="notch'+(VIEW===null?" act":"")+'" onclick="setView(null)">Full build</button>';
-  const snap=equipped().map(id=>{const t=tree(id),p=at[id]||0,n=t.sk.filter(k=>p>=k.t).length;return '<span class="chip">'+CATI[t.c]+' '+t.n+' '+p+'/33 · '+n+' skills</span>';}).join("");
-  const rows=r.steps.map(s=>{const t=tree(s.id);return '<div class="pstep'+(s.lv>view?" later":"")+'"><span class="lv">Lv '+s.lv+'</span><span>'+CATI[t.c]+' <b>'+t.n+'</b> · '+s.skills.map(k=>k.n+(k.c?" ★":"")).join(", ")+'</span></div>';}).join("");
-  box.innerHTML='<div class="treehead"><span class="tname">Leveling path</span></div>'
-    +'<div class="nhint">'+(S.pathAuto?'Estimated order: birth tree first, then the cheapest tiers. Investing in tiers records your own order.':'Order follows how you invested. 1 point per level.')+'</div>'
-    +'<div class="mschips">'+chips+'</div>'
-    +'<div class="snap"><b>'+(VIEW===null?"Full build":"At Lv "+view)+':</b> '+snap+'</div>'
-    +'<details'+(PATH_OPEN?" open":"")+' ontoggle="PATH_OPEN=this.open"><summary style="cursor:pointer;font-size:13px;color:#8b94ab">Unlock order ('+r.steps.length+' steps)</summary>'+rows+'</details>'
-    +'<div class="row"><button onclick="replan()">Re-plan automatically</button></div>';
-}
+function toggleTree(id){TREE_OPEN.has(id)?TREE_OPEN.delete(id):TREE_OPEN.add(id);renderTrees();}
 
 /* ---- summary ---- */
 function renderSummary(){
@@ -910,7 +889,7 @@ function randomBuild(){
     rem-=T-cur;spent[id]=T;
   }
   S={...blank(),rank:tree(trees[0]).c==="support"?"U":pick(RANKS.slice(1)),level,trees,spent,path};
-  VIEW=null;renderAll();toast("Random build: Lv "+level+" · "+tree(trees[0]).n);
+  renderAll();toast("Random build: Lv "+level+" · "+tree(trees[0]).n);
 }
 
 /* ---- identity ---- */
@@ -995,7 +974,7 @@ async function parseAny(c){
   }
   return parseCode(c);
 }
-function loadCode(c){const st=parseCode(c);if(!st)return false;S=st;VIEW=null;renderAll();return true;}
+function loadCode(c){const st=parseCode(c);if(!st)return false;S=st;renderAll();return true;}
 
 /* shrink an uploaded portrait for links (URLs stay as-is) */
 function thumb(src,size=128){
@@ -1030,13 +1009,9 @@ function openShare(){
   $("#share").classList.remove("hidden");makeLink();
 }
 async function makeLink(){
-  const n=++LINK_N;$("#shUrl").value="Making link…";$("#shInfo").textContent="";
+  const n=++LINK_N;$("#shUrl").value="Making link…";
   const u=await buildLink($("#shImg").checked);if(n!==LINK_N)return;
   $("#shUrl").value=u;
-  const uploaded=S.image&&S.image.startsWith("data:")&&$("#shImg").checked;
-  $("#shInfo").textContent=u.length>2000
-    ?"This link is "+u.length.toLocaleString()+" characters. Browsers open it fine, but some chat apps cut very long links."+(uploaded?" A portrait from an image URL keeps the link short.":"")
-    :"";
 }
 function copyText(u,msg){
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(u).then(()=>toast(msg)).catch(()=>oldCopy(u,msg));
@@ -1048,7 +1023,7 @@ function copyCode(){copyText($("#shCode").value,"Code copied");}
 async function doImport(){
   const st=await parseAny($("#shIn").value);
   if(!st){toast("Invalid code or link");return;}
-  S=st;VIEW=null;renderAll();
+  S=st;renderAll();
   toast("Build loaded");$("#share").classList.add("hidden");
 }
 function setImgUrl(v){
@@ -1109,11 +1084,11 @@ function renderCompare(){
   const a=unlockedSet(S),b=unlockedSet(CB),both=[...a].filter(x=>b.has(x)).length;
   $("#cmpOut").innerHTML='<p class="nhint">Highlighted skills are unique to that build. '+both+' skill'+(both===1?'':'s')+' shared.</p><div class="cgrid">'+cmpCol(S,CB,"Current")+cmpCol(CB,S,"Compared")+'</div><div class="row"><button onclick="swapCompare()">Swap: edit the compared build</button></div>';
 }
-function swapCompare(){if(!CB)return;const old=S;S=CB;CB=old;VIEW=null;renderAll();renderCompare();toast("Swapped builds");}
+function swapCompare(){if(!CB)return;const old=S;S=CB;CB=old;renderAll();renderCompare();toast("Swapped builds");}
 
 function resetAll(){
   if(!confirm("Reset the whole character?"))return;
-  S=blank();LOCK=[false,false,false];VIEW=null;OPEN.clear();
+  S=blank();LOCK=[false,false,false];OPEN.clear();TREE_OPEN.clear();
   try{history.replaceState(null,"",location.pathname);}catch(e){}
   renderAll();
 }
@@ -1131,7 +1106,7 @@ function renderAll(){
   $("#portrait").style.backgroundImage=S.image?'url("'+S.image+'")':"";
   $("#inpImg").value=S.image&&!S.image.startsWith("data:")?S.image:"";
   $("#portrait").innerHTML=S.image?"":"click to<br>upload";
-  renderSlots();renderTrees();renderPath();renderSummary();
+  renderSlots();renderTrees();renderSummary();
   syncHash();
 }
 
@@ -1143,7 +1118,7 @@ window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(h&&h
 async function loadFromHash(h){
   const st=await parseAny(decodeURIComponent(h));
   if(!st){toast("That link doesn't contain a valid build");return;}
-  S=st;VIEW=null;renderAll();toast(st.name?"Loaded build: "+st.name:"Loaded build from link");
+  S=st;renderAll();toast(st.name?"Loaded build: "+st.name:"Loaded build from link");
 }
 </script>
 </body>
